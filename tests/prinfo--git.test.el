@@ -46,3 +46,15 @@
                  ))
     )
   )
+
+(ert-deftest prinfo/git-test::0010 ()
+  "Test `prinfo/git::remote-url'"
+  (/tmp/with-temp-dir
+    (/tmp/weird-magic-spell)
+    (should (zerop (call-process "tar" nil nil nil
+                                 "xzf" (f-expand "bar.tar.gz" $RSC-DIR))))
+    (should (f-dir-p "bar"))
+    (should (string= (prinfo/git::remote-url "bar")
+                     "/home/lieutar/work/emacs/prinfo.el/tests/rsc/foo"))
+    )
+  )

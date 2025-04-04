@@ -142,6 +142,7 @@ then restore the original LANG."
 
 ;;;###autoload
 (defun prinfo/git::last-committed (path)
+  ""
   (unless (f-dir-p path) (setq path (f-dirname path)))
   (let* ((default-directory (f-expand path))
          (result (prinfo/git::with-LANG-C
@@ -157,6 +158,23 @@ then restore the original LANG."
             (s-split
              "-"
              result)))))
+
+;;;###autoload
+(defun prinfo/git::remote-url (path &optional name)
+  ""
+  (unless (f-dir-p path) (setq path (f-dirname path)))
+  (setq name (or name "origin"))
+  (let* ((default-directory (f-expand path))
+         (result (prinfo/git::with-LANG-C
+                  (with-temp-buffer
+                    (when (zerop (call-process
+                                  "git" nil t nil
+                                  "remote" "get-url" name)))
+                    (s-chomp (buffer-substring-no-properties
+                              (point-min)(point-max)))))))
+    result))
+
+;;(prinfo/git::remote-url "~/.emacs.d/straight/repos/f.el")
 
 
 ;;; prinfo.el ends here

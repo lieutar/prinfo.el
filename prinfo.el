@@ -7,6 +7,7 @@
 ;; Version: 0.0.0
 ;; Keywords:
 ;; URL:
+;; Package-Requires: ((emacs "29.3")(dash)(s)(f))
 
 ;;; License:
 

@@ -27,9 +27,9 @@
           (p00-lc  (prinfo/git::last-committed "p00/submods")))
       (should (string= (s-join "\n" p02-npl)
                        (s-join "\n" (--map (f-expand it)
-                                           '("p00"
-                                             "p00/submods/p01"
-                                             "p00/submods/p01/submods/p02")))))
+                                           '("p00/"
+                                             "p00/submods/p01/"
+                                             "p00/submods/p01/submods/p02/")))))
       (should (string= p01-br "main"))
       (should (string= (format "%S" p00-lc) "(2025 3 15 12 33 4)"))
       (should-not (prinfo/git::has-uncommitted-changes-p "p00"))

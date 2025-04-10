@@ -4,7 +4,7 @@
 ;; Copyright (C) 2025  lieutar <lieutar@gmail.com>
 
 ;; Author:
-;; Version: 0.0.0
+;; Version: 0.1.0
 ;; Keywords:
 ;; URL:
 ;; Package-Requires: ((emacs "29.3")(dash)(s)(f))
@@ -23,6 +23,68 @@
 (require 'dash)
 (require 's)
 (require 'f)
+
+
+
+;;;###autoload
+(defun prinfo-get-nested-project-list (path &rest options)
+  ""
+  (unless (f-dir-p path) (setq path (f-dirname path)))
+  (let ((type          (plist-get options :type))
+        (root-dir      (plist-get options :root-dir))
+        (force-to-root (plist-get options :force-to-root)))
+    (letrec ((recurse
+              (lambda (pinfo)
+                (let ((path   (car pinfo))
+                      (palist (cdr pinfo)))
+                  (if (and (not force-to-root)
+                           (--find (plist-get (cdr it) :root) palist))
+                      (list pinfo)
+                    (cons pinfo
+                          (funcall recurse
+                                   (prinfo-project-root
+                                    (f-parent path)
+                                    :type type
+                                    :root-dir root-dir))))))))
+      (let ((pinfo (prinfo-project-root path
+                                        (f-expand path)
+                                        :type type
+                                        :root-dir root-dir)))
+        (and pinfo (reverse (funcall recurse pinfo)))))))
+
+(defconst prinfo::$vcs-detector-functions ())
+;;;###autoload
+(defun prinfo-project-root (path &rest options)
+  "Return root directory of the project contains PATH."
+  (let ((cpath (lambda (path)
+                 (let ((sep (f-path-separator)))
+                   (s-replace-regexp
+                    (format "\\([^%s]\\)\\'" (regexp-quote sep))
+                    (concat "\\1" sep)
+                    (f-expand path))))))
+    (setq path (funcall cpath (if (f-dir-p path) path (f-dirname path))))
+    (let ((type     (plist-get options :type))
+          (root-dir (funcall cpath (or (plist-get options :root-dir) "/"))))
+      (unless (string= path root-dir)
+        (let ((detected (->>  prinfo::$vcs-detector-functions
+                              (--map (funcall it path))
+                              (--filter (and it
+                                             (or (not type)
+                                                 (eq type (car it))))))))
+          (if detected
+              (cons path detected)
+            (prinfo-project-root (f-parent path))))))))
+
+
+;;;; prinfo/git
+
+(defun prinfo/git::detect-git (path)
+  (let ((dot-git (f-expand ".git" path)))
+    (cond ((prinfo/git::is-git-dir-p dot-git)
+           (list 'git :root t))
+          ((prinfo/git::is-git-dir-file-p dot-git)
+           (list 'git :root nil)))))
+(add-hook 'prinfo::$vcs-detector-functions #'prinfo/git::detect-git)
 
 ;;;###autoload
 (defsubst prinfo/git::is-git-dir-p (path)
@@ -83,26 +145,21 @@ The return value will be a plist having following properties.
               :last-commited (prinfo/git::last-committed context))))))
 
 ;;;###autoload
-(defun prinfo/git::nested-project-list (path)
+(defun prinfo/git::nested-project-list (path &rest options)
   ""
-  (unless (f-dir-p path) (setq path (f-dirname path)))
-  (letrec ((recurse (lambda (path)
-                      (if (f-dir-p (f-expand ".git" path))
-                          (list path)
-                        (cons path (funcall recurse (prinfo/git::project-root
-                                                     (f-parent path))))))))
-    (let ((pr (prinfo/git::project-root (f-expand path))))
-      (and pr (reverse (funcall recurse pr))))))
+  (let ((result (prinfo-get-nested-project-list
+                 path
+                 :type 'git
+                 :root-dir (plist-get options :root-dir)
+                 :force-to-root (plist-get options :force-to-root))))
+    (-map #'car result)))
 
 ;;;###autoload
-(defun prinfo/git::project-root (path)
+(defun prinfo/git::project-root (path &rest options)
   "Return root directory of the project contains PATH."
-  (unless (f-dir-p path) (setq path (f-dirname path)))
-  (unless (f-root-p path)
-    (let ((dot-git (f-expand ".git" path)))
-      (if (prinfo/git::is-valid-dot-git-p dot-git)
-          path
-        (prinfo/git::project-root (f-parent path))))))
+  (car (prinfo-project-root path
+                            :type 'git
+                            :root-dir (plist-get options :root-dir))))
 
 (defmacro prinfo/git::with-LANG-C (&rest body)
   "Execute BODY with LANG environment variable set to C,
